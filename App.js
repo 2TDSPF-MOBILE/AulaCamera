@@ -1,11 +1,15 @@
-import { StyleSheet, Text, View, Image, Button, Alert } from 'react-native';
+import { StyleSheet, Text, View, Image, Button, Alert, Linking } from 'react-native';
 import React, { useState, useEffect, useRef } from 'react';
+
 
 //Novo sistema de câmeras no Expo SDK 51+
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
 //Biblioteca para salvar a foto na galeria
 import * as MediaLibrary from 'expo-media-library'
+
+//Importanto modulo para compartilhamento externo
+import * as Sharing from 'expo-sharing'
 
 export default function App() {
   //Estado para permissão da camera
@@ -19,6 +23,15 @@ export default function App() {
 
   //Estado para a foto capturado
   const [foto, setFoto] = useState(null)
+
+  // Estado para alterar camera frontal e camera traseira
+  const[isFrontCamera,setIsFrontCamera]=useState(false)
+
+  //Estado para o flash do aparelho
+  const[flashLigado,setFlashLigado] = useState(false)
+
+  //Criando o estado escaneado
+  const[scaneado,setScaneado]=useState(false)
 
   //Solicitar permissão para acessar a galeria no inicio do app
   useEffect(() => {
@@ -46,6 +59,25 @@ export default function App() {
     }
   }
 
+  const compartilharFoto = async () =>{
+    if(foto?.uri && await Sharing.isAvailableAsync()){
+      await Sharing.shareAsync(foto.uri)
+    }else{
+      Alert.alert("Error","Não foi possível o compartilhamento")
+    }
+  }
+
+
+  //Função para alterar as cameras
+  const alterarCamera = () =>{
+    setIsFrontCamera((value)=>!value)
+  }
+
+  //Função para ligar ou desligar o flash
+  const alterarFlash = () =>{
+    setFlashLigado((value)=>!value)
+  }
+
   //Enquanto a permissão não estiver carregada
   if (!permissaoCam) return <View />
 
@@ -65,15 +97,34 @@ export default function App() {
           <CameraView
             ref={cameraRef}
             style={styles.camera}
-            facing='back'
+            facing={isFrontCamera?'front':'back'}
+            flash={flashLigado?'on':'off'}
+            onBarcodeScanned={({type,data})=>{
+              if(!scaneado){
+                setScaneado(true)
+                Alert.alert("Cod Detectado", `Tipo:${type}\nValor:${data}`,
+                  [{text:"Cancelar", style:'cancel'},
+                    {text:"Pesquisar Produto",onPress:()=>{
+                      const url = `https://pt.product-search.net/?q=${data}`;
+                      Linking.openURL(url)
+                    }}]
+                )
+              }
+            }}
           />
-          <Button title='Titar Foto' onPress={tirarFoto} />
+          <Button title='Tirar Foto' onPress={tirarFoto} />
+          <Button title='Alterar Camera' onPress={alterarCamera}/>
+          <Button title={flashLigado?'Desligar flash':'Ligar flash'} onPress={alterarFlash}/>
+          {scaneado && (
+            <Button title='Escanear novamente' onPress={()=>setScaneado(false)}/>
+          )}
         </>
       ):(
         <>
           <Image source={{uri:foto.uri}} style={styles.preview}/>
           <Button title='Tirar nova foto' onPress={()=>setFoto(null)}/>
           <Button title='Salvar Foto' onPress={salvarFoto} />
+          <Button title='Compartilhar foto' onPress={compartilharFoto}/>
         </>
       )}
     </View>
